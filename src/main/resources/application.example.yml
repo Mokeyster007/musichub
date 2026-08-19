@@ -1,0 +1,38 @@
+server:
+  port: 8080
+
+spring:
+  main:
+    allow-circular-references: true
+    allow-bean-definition-overriding: true
+  datasource:
+    url: jdbc:mysql://your-server-ip:3306/musichub?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: root
+    password: your-db-password
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 200MB
+  data:
+    redis:
+      host: your-server-ip
+      port: 6379
+      database: 0
+      password: your-redis-password
+
+mybatis-plus:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.musichub.entity
+  configuration:
+    map-underscore-to-camel-case: true
+
+minio:
+  endpoint: http://your-server-ip:9000
+  access-key: your-minio-access-key
+  secret-key: your-minio-secret-key
+  bucket-name: vibe-music-data
+
+netease:
+  api:
+    base-url: http://127.0.0.1:3000
