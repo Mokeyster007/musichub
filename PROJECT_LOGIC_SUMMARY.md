@@ -42,7 +42,7 @@ spring:
   datasource:
     url: jdbc:mysql://localhost:3306/musichub?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
     username: root
-    password: py282218311
+    password: your-db-password
 
   redis:
     host: localhost
@@ -54,8 +54,8 @@ file:
 
 minio:
   endpoint: http://localhost:9000
-  access-key: minioadmin
-  secret-key: minioadmin
+  access-key: your-minio-access-key
+  secret-key: your-minio-secret-key
   bucket-name: vibe-music-data
 ```
 
@@ -68,10 +68,9 @@ minio:
 ```java
 public class JwtUtil {
 
-    // 签名密钥，长度要足够，否则 HS256 会抛错
-    private static final String SECRET_STRING = "MusicHubSecretKeyForMyAwesomeProjectNeverShareAndItMustBeLongEnough123";
-    // 把字符串密钥转换成 JJWT 需要的 SecretKey
-    private static final SecretKey SECRET_KEY = Keys.hmacShaKeyFor(SECRET_STRING.getBytes());
+    // 签名密钥已改为从 application.yml 的 jwt.secret 配置读取（HS256 要求密钥足够长）
+    @Value("${jwt.secret}")
+    public void initSecret(String secret) { ... }
     // Token 默认有效期 24 小时
     private static final long EXPIRATION_TIME = 24 * 60 * 60 * 1000;
 

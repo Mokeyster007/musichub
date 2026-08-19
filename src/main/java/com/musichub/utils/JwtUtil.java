@@ -4,20 +4,29 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.util.Date;
 
+@Component
 public class JwtUtil {
 
-    // 1. 定义一个安全的字符串密钥（为了满足 HS256，最好长一点）
-    private static final String SECRET_STRING = "MusicHubSecretKeyForMyAwesomeProjectNeverShareAndItMustBeLongEnough123";
+    // 1. 签名密钥从 application.yml 的 jwt.secret 注入，避免硬编码在源码中泄露
+    private static String secretString;
 
     // 2. 将字符串转换为符合 JWT 规范的 SecretKey 对象
-    private static final SecretKey SECRET_KEY = Keys.hmacShaKeyFor(SECRET_STRING.getBytes());
+    private static SecretKey SECRET_KEY;
 
     // 3. 定义 Token 的过期时间（24 小时）
     private static final long EXPIRATION_TIME = 24 * 60 * 60 * 1000;
+
+    @Value("${jwt.secret}")
+    public void initSecret(String secret) {
+        secretString = secret;
+        SECRET_KEY = Keys.hmacShaKeyFor(secretString.getBytes());
+    }
 
     /**
      * 功能 1：给登录成功的用户生成一个 Token

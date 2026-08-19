@@ -27,6 +27,9 @@ mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
 
+jwt:
+  secret: your-jwt-secret-key-please-generate-a-long-random-one
+
 minio:
   endpoint: http://your-server-ip:9000
   access-key: your-minio-access-key
