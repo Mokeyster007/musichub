@@ -12,7 +12,6 @@ import com.musichub.service.LrclibService;
 import com.musichub.service.NeteaseScraperService;
 import com.musichub.service.PlayHistoryService;
 import com.musichub.service.SongService;
-import com.musichub.service.UserService;
 import com.musichub.service.ArtistService;
 import com.musichub.utils.MusicScraperUtil;
 import com.musichub.utils.UserHolder;
@@ -47,7 +46,6 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.net.URL;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -85,9 +83,6 @@ public class SongController {
 
     @Autowired
     private PlayHistoryService playHistoryService;
-
-    @Autowired
-    private UserService userService;
 
     @Autowired
     private RestTemplate restTemplate;
@@ -248,27 +243,26 @@ public class SongController {
                 || currentLyric.contains("暂无歌词") || currentLyric.contains("加载失败");
         
         if (needsFetch) {
-            System.out.println("📝 [歌词补全] 检测到需要抓取歌词 | songId=" + song.getSongId() 
-                    + " | 歌曲名=" + song.getSongName() 
-                    + " | 歌手=" + singerName 
-                    + " | 当前歌词状态=" + (currentLyric == null ? "null" : "空/占位符"));
+            log.info("📝 [歌词补全] 检测到需要抓取歌词 | songId={} | 歌曲名={} | 歌手={} | 当前歌词状态={}",
+                    song.getSongId(), song.getSongName(), singerName,
+                    currentLyric == null ? "null" : "空/占位符");
             
             try {
-                System.out.println("🔍 [歌词补全-网易云] 开始请求...");
+                log.info("🔍 [歌词补全-网易云] 开始请求...");
                 String fetchedLyric = neteaseScraperService.fetchLyricFromNetease(song.getSongName(), singerName);
                 
                 if (fetchedLyric == null || fetchedLyric.trim().isEmpty()) {
-                    System.out.println("⚠️ [歌词补全-网易云] 未找到歌词，启动备用引擎 Lrclib...");
-                    System.out.println("🔍 [歌词补全-Lrclib] 开始请求...");
+                    log.warn("⚠️ [歌词补全-网易云] 未找到歌词，启动备用引擎 Lrclib...");
+                    log.info("🔍 [歌词补全-Lrclib] 开始请求...");
                     fetchedLyric = lrclibService.fetchLyric(song.getSongName(), singerName, song.getDuration());
                     
                     if (fetchedLyric != null && !fetchedLyric.trim().isEmpty()) {
-                        System.out.println("✅ [歌词补全-Lrclib] 命中！歌词长度: " + fetchedLyric.length() + " 字符");
+                        log.info("✅ [歌词补全-Lrclib] 命中！歌词长度: {} 字符", fetchedLyric.length());
                     } else {
-                        System.out.println("❌ [歌词补全-Lrclib] 也未找到歌词");
+                        log.warn("❌ [歌词补全-Lrclib] 也未找到歌词");
                     }
                 } else {
-                    System.out.println("✅ [歌词补全-网易云] 成功获取！歌词长度: " + fetchedLyric.length() + " 字符");
+                    log.info("✅ [歌词补全-网易云] 成功获取！歌词长度: {} 字符", fetchedLyric.length());
                 }
                 
                 String finalLyric = fetchedLyric != null && !fetchedLyric.trim().isEmpty()
@@ -278,24 +272,21 @@ public class SongController {
                 boolean updateSuccess = songService.updateById(song);
                 
                 if (updateSuccess) {
-                    System.out.println("✅ [歌词补全-数据库] 更新成功 | songId=" + song.getSongId());
+                    log.info("✅ [歌词补全-数据库] 更新成功 | songId={}", song.getSongId());
                     currentLyric = song.getLyric();
                 } else {
-                    System.err.println("❌ [歌词补全-数据库] 更新失败 | songId=" + song.getSongId());
+                    log.error("❌ [歌词补全-数据库] 更新失败 | songId={}", song.getSongId());
                     currentLyric = finalLyric;
                 }
                 
             } catch (Exception e) {
-                System.err.println("❌ [歌词补全-异常] 播放时补全歌词失败 | songId=" + song.getSongId() 
-                        + " | 歌曲名=" + song.getSongName() 
-                        + " | 错误类型=" + e.getClass().getSimpleName()
-                        + " | 错误信息=" + e.getMessage());
-                e.printStackTrace();
+                log.error("❌ [歌词补全-异常] 播放时补全歌词失败 | songId={} | 歌曲名={} | 错误类型={} | 错误信息={}",
+                        song.getSongId(), song.getSongName(), e.getClass().getSimpleName(), e.getMessage(), e);
                 currentLyric = "[00:00.00]歌词加载失败\n[00:02.00]请专心听歌吧";
             }
         } else {
-            System.out.println("ℹ️ [歌词补全] 无需抓取，已有歌词 | songId=" + song.getSongId() 
-                    + " | 歌词长度=" + (currentLyric == null ? 0 : currentLyric.length()));
+            log.info("ℹ️ [歌词补全] 无需抓取，已有歌词 | songId={} | 歌词长度={}",
+                    song.getSongId(), currentLyric == null ? 0 : currentLyric.length());
         }
 
         // ── ✅ 封面自动回填（针对封面为空的老数据） ──
@@ -315,11 +306,11 @@ public class SongController {
                     if (minioUrl != null) {
                         song.setCoverUrl(minioUrl);
                         songService.updateById(song);
-                        System.out.println("✅ 老数据封面回填 MinIO 成功: " + minioUrl);
+                        log.info("✅ 老数据封面回填 MinIO 成功: {}", minioUrl);
                     }
                 }
             } catch (Exception e) {
-                System.out.println("⚠️ 封面回填失败（不影响播放）: " + e.getMessage());
+                log.warn("⚠️ 封面回填失败（不影响播放）: {}", e.getMessage());
             }
         }
 
@@ -402,7 +393,7 @@ public class SongController {
             data.put("songName", name.trim());
             return Result.success(data);
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("编辑歌曲失败 | songId={}", id, e);
             return Result.fail("编辑失败：" + e.getMessage());
         }
     }
@@ -453,7 +444,7 @@ public class SongController {
                     String base64Url = "data:" + artwork.getMimeType() + ";base64,"
                             + Base64.getEncoder().encodeToString(artwork.getBinaryData());
                     parseDTO.setPic(base64Url);
-                    System.out.println("✅ 成功提取本地封面并转为 Base64 预览");
+                    log.info("✅ 成功提取本地封面并转为 Base64 预览");
                 }
             }
 
@@ -467,7 +458,7 @@ public class SongController {
                         parseDTO.setAlbum(scrapedData.getAlbum());
                     if (parseDTO.getPic() == null || parseDTO.getPic().isEmpty()) {
                         parseDTO.setPic(scrapedData.getCoverUrl());
-                        System.out.println("✅ 苹果 iTunes 补全封面: " + scrapedData.getCoverUrl());
+                        log.info("✅ 苹果 iTunes 补全封面: {}", scrapedData.getCoverUrl());
                     }
                 }
             }
@@ -480,22 +471,22 @@ public class SongController {
                             .fetchSongCover(parseDTO.getName(), parseDTO.getSinger());
                     if (neteaseCover != null && !neteaseCover.trim().isEmpty()) {
                         parseDTO.setPic(neteaseCover);
-                        System.out.println("✅ 网易云补全封面: " + neteaseCover);
+                        log.info("✅ 网易云补全封面: {}", neteaseCover);
                     }
                 } catch (Exception e) {
                     // 封面刮削失败不影响解析主流程
-                    System.out.println("⚠️ 网易云封面刮削失败（不影响上传）: " + e.getMessage());
+                    log.warn("⚠️ 网易云封面刮削失败（不影响上传）: {}", e.getMessage());
                 }
             }
 
             if (parseDTO.getPic() == null || parseDTO.getPic().isEmpty()) {
-                System.out.println("⚠️ 三级兜底均未找到封面，歌曲：" + parseDTO.getName());
+                log.warn("⚠️ 三级兜底均未找到封面，歌曲：{}", parseDTO.getName());
             }
 
             // ── 刮歌词：网易云 → Lrclib 二级兜底 ──
             String lrcStr = neteaseScraperService.fetchLyricFromNetease(parseDTO.getName(), parseDTO.getSinger());
             if (lrcStr == null || lrcStr.trim().isEmpty()) {
-                System.out.println("上传解析时网易云未找到歌词，尝试 Lrclib...");
+                log.info("上传解析时网易云未找到歌词，尝试 Lrclib...");
                 lrcStr = lrclibService.fetchLyric(parseDTO.getName(), parseDTO.getSinger(), null);
             }
             if (lrcStr != null && !lrcStr.trim().isEmpty()) parseDTO.setLyric(lrcStr);
@@ -504,7 +495,7 @@ public class SongController {
             return Result.success(parseDTO);
 
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("解析音频文件失败", e);
             return Result.fail("解析音频文件失败：" + e.getMessage());
         } finally {
             if (tempFile != null && tempFile.exists()) tempFile.delete();
@@ -548,7 +539,7 @@ public class SongController {
                     .stream(file.getInputStream(), file.getSize(), -1)
                     .contentType(file.getContentType()).build());
             String finalAudioUrl = minioEndpoint + "/" + BUCKET_NAME + "/" + audioObjectName;
-            System.out.println("✅ 音频上传 MinIO 成功: " + finalAudioUrl);
+            log.info("✅ 音频上传 MinIO 成功: {}", finalAudioUrl);
 
             // ── Step 2：处理封面 → 统一落地 MinIO ──
             String finalCoverUrl = null;
@@ -557,25 +548,25 @@ public class SongController {
                 if (pic.startsWith("data:image")) {
                     // 前端传来的 Base64（本地 Tag 内嵌封面）
                     finalCoverUrl = resolveCoverUrl(pic);
-                    System.out.println("✅ Base64 封面上传 MinIO 成功: " + finalCoverUrl);
+                    log.info("✅ Base64 封面上传 MinIO 成功: {}", finalCoverUrl);
                 } else if (pic.startsWith("http")) {
                     // 前端传来的外链（苹果 iTunes 或网易云刮削封面）→ 下载 → 存 MinIO
                     finalCoverUrl = downloadAndUploadCoverToMinio(pic);
-                    System.out.println("✅ 外链封面下载并上传 MinIO 成功: " + finalCoverUrl);
+                    log.info("✅ 外链封面下载并上传 MinIO 成功: {}", finalCoverUrl);
                 }
             }
 
             // ── ✅ Step 3：封面仍为空 → 发布阶段补救刮削 ──
             // 覆盖场景：前端没传 pic，或 parse 阶段三级兜底都失败了
             if (finalCoverUrl == null || finalCoverUrl.trim().isEmpty()) {
-                System.out.println("▶ 封面为空，开始发布阶段补救刮削，歌曲：" + name.trim());
+                log.info("▶ 封面为空，开始发布阶段补救刮削，歌曲：{}", name.trim());
                 String scrapedCover = null;
 
                 // 优先网易云
                 try {
                     scrapedCover = neteaseScraperService.fetchSongCover(name.trim(), singer);
                 } catch (Exception e) {
-                    System.out.println("⚠️ 网易云封面补救失败: " + e.getMessage());
+                    log.warn("⚠️ 网易云封面补救失败: {}", e.getMessage());
                 }
 
                 // 网易云没找到则用苹果 iTunes
@@ -585,17 +576,19 @@ public class SongController {
                                 MusicScraperUtil.scrapeFromApple(name.trim(), singer);
                         if (scraped != null) scrapedCover = scraped.getCoverUrl();
                     } catch (Exception e) {
-                        System.out.println("⚠️ 苹果 iTunes 封面补救失败: " + e.getMessage());
+                        log.warn("⚠️ 苹果 iTunes 封面补救失败: {}", e.getMessage());
                     }
                 }
 
                 if (scrapedCover != null && !scrapedCover.trim().isEmpty()) {
                     finalCoverUrl = downloadAndUploadCoverToMinio(scrapedCover);
-                    System.out.println(finalCoverUrl != null
-                            ? "✅ 发布阶段封面补救成功: " + finalCoverUrl
-                            : "⚠️ 发布阶段封面补救：刮削到但上传 MinIO 失败");
+                    if (finalCoverUrl != null) {
+                        log.info("✅ 发布阶段封面补救成功: {}", finalCoverUrl);
+                    } else {
+                        log.warn("⚠️ 发布阶段封面补救：刮削到但上传 MinIO 失败");
+                    }
                 } else {
-                    System.out.println("⚠️ 发布阶段封面补救：所有刮削源均未找到封面，歌曲：" + name.trim());
+                    log.warn("⚠️ 发布阶段封面补救：所有刮削源均未找到封面，歌曲：{}", name.trim());
                 }
             }
 
@@ -633,7 +626,7 @@ public class SongController {
             return Result.success(returnData);
 
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("发布歌曲失败", e);
             return Result.fail("发布失败：" + e.getMessage());
         }
     }
@@ -807,7 +800,9 @@ public class SongController {
         Long userId = UserHolder.getUserId();
         Song song = songService.getById(id);
         if (song == null) return Result.fail("歌曲不存在");
-        if (!song.getUserId().equals(userId)) return Result.fail("无权限删除");
+        // 平台歌曲 userId 为 null，未登录时 userId 也为 null，均需判空避免 NPE
+        if (userId == null || song.getUserId() == null || !song.getUserId().equals(userId))
+            return Result.fail("无权限删除");
 
         songService.removeById(id);
         deleteMinioFile(song.getAudioUrl());
@@ -834,11 +829,10 @@ public class SongController {
         if (!coverUrl.startsWith("http")) return null;
 
         try {
-            RestTemplate rt = new RestTemplate();
-            ResponseEntity<byte[]> resp = rt.getForEntity(coverUrl, byte[].class);
+            ResponseEntity<byte[]> resp = restTemplate.getForEntity(coverUrl, byte[].class);
             byte[] imageBytes = resp.getBody();
             if (imageBytes == null || imageBytes.length == 0) {
-                System.err.println("❌ 封面下载失败（空响应）: " + coverUrl);
+                log.error("❌ 封面下载失败（空响应）: {}", coverUrl);
                 return null;
             }
 
@@ -856,7 +850,7 @@ public class SongController {
 
             return minioEndpoint + "/" + BUCKET_NAME + "/" + objectName;
         } catch (Exception e) {
-            System.err.println("❌ 封面下载/上传 MinIO 失败: " + e.getMessage() + "（URL: " + coverUrl + "）");
+            log.error("❌ 封面下载/上传 MinIO 失败: {}（URL: {}）", e.getMessage(), coverUrl);
             return null;
         }
     }
@@ -876,9 +870,9 @@ public class SongController {
             if (parts.length < 3) return;
             minioClient.removeObject(RemoveObjectArgs.builder()
                     .bucket(parts[1]).object(parts[2]).build());
-            System.out.println("✅ MinIO 文件已删除: " + parts[2]);
+            log.info("✅ MinIO 文件已删除: {}", parts[2]);
         } catch (Exception e) {
-            System.err.println("❌ MinIO 文件删除失败: " + fileUrl + " → " + e.getMessage());
+            log.error("❌ MinIO 文件删除失败: {} → {}", fileUrl, e.getMessage());
         }
     }
 
